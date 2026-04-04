@@ -175,7 +175,6 @@ class PostMedia(models.Model):
         on_delete=models.CASCADE,
         related_name="carousel_items",
     )
-    file = models.FileField(upload_to="posts/carousel/%Y/%m/%d/")
     thumbnail = models.ImageField(
         upload_to="posts/carousel/thumbs/%Y/%m/%d/",
         blank=True,

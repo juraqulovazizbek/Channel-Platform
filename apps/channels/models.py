@@ -90,13 +90,14 @@ class Channel(models.Model):
                 name="idx_channel_tg_id",
             ),
         ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["owner", "telegram_channel_id"],
-                name="uq_owner_telegram_channel",
-            )
-        ]
-
+    # models.py — to'g'rilangan:
+    constraints = [
+        models.UniqueConstraint(
+            fields=["owner", "telegram_channel_id"],
+            condition=models.Q(telegram_channel_id__isnull=False),  # ← NULL larni o'tkazib yuborish
+            name="uq_owner_telegram_channel",
+        )
+    ]
     def __str__(self):
         return f"{self.name} ({self.slug})"
 

@@ -5,6 +5,7 @@ from apps.posts.views import (
     PostDetailView,
     PostViewTrackView,
     PinnedPostsView,
+    SearchPostsView
 )
 
 app_name = "posts"
@@ -29,5 +30,10 @@ urlpatterns = [
         "channel/<slug:slug>/pinned/",
         PinnedPostsView.as_view(),
         name="channel-pinned-posts",
+    ),
+    path(
+        "search/",
+        SearchPostsView.as_view(),
+        name="post-search",
     ),
 ]

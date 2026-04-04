@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.db.models import Q
 
 from apps.channels.models import Channel
 from apps.posts.models import Post, PostType
@@ -170,12 +171,13 @@ class PostDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer.save()
+       # TO'G'RI — yangilangan instanceni ishlatish:
+        updated_post = serializer.save()
         return Response(
-            PostDetailSerializer(post).data,
+            PostDetailSerializer(updated_post).data,
             status=status.HTTP_200_OK,
         )
-
+    
     def delete(self, request, post_id):
         post = self._get_post(post_id)
 
@@ -284,8 +286,8 @@ class SearchPostsView(APIView):
                 channel__is_active=True,
             )
             .filter(
-                # Search in title and content
-                title__icontains=query,
+                Q(text__icontains=query) |
+                Q(content__icontains=query)
             )
             .select_related("channel")
             .order_by("-views_count", "-created_at")

@@ -99,14 +99,25 @@ class ChannelDetailView(APIView):
             return [AllowAny()]
         return [IsAuthenticated(), IsChannelOwner()]
 
+    # channels/views.py — to'g'rilash:
     def _get_channel(self, slug):
-        return get_object_or_404(
-            Channel.objects
-            .filter(is_active=True)
-            .annotate(post_count=Count("posts"))
-            .select_related("owner"),
-            slug=slug,
-        )
+        if self.request.method == "GET":
+            # Ommaviy: faqat faol kanallar
+            return get_object_or_404(
+                Channel.objects.filter(is_active=True)
+                .annotate(post_count=Count("posts"))
+                .select_related("owner"),
+                slug=slug,
+            )
+        else:
+            # Owner: faol va nofaol kanallarni ham ko'ra oladi
+            return get_object_or_404(
+                Channel.objects
+                .annotate(post_count=Count("posts"))
+                .select_related("owner"),
+                slug=slug,
+                owner=self.request.user,  # owner tekshiruvi bu yerda
+            )
 
     def get(self, request, slug):
         channel = self._get_channel(slug)
