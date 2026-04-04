@@ -49,38 +49,46 @@ def verify_telegram_auth(data: dict) -> bool:
         logger.warning("Telegram auth rejected: missing hash field.")
         return False
 
-    # Reject stale auth data regardless of where this is called from
-    auth_date = data.get("auth_date", 0)
-    if time.time() - int(auth_date) > 86400:
-        logger.warning(
-            "Telegram auth rejected: auth_date too old (age=%ds).",
-            int(time.time() - int(auth_date)),
-        )
+    # SAFE auth_date parsing
+    try:
+        auth_date = int(data.get("auth_date", 0))
+    except (ValueError, TypeError):
+        logger.warning("Telegram auth rejected: invalid auth_date.")
         return False
 
-    # Build the check string: all fields except 'hash', sorted, newline-joined
-    check_fields = {k: v for k, v in data.items() if k != "hash" and v}
+    # 24h expiry check
+    if time.time() - auth_date > 86400:
+        logger.warning("Telegram auth rejected: auth expired.")
+        return False
+
+    # STRICT Telegram spec filtering
+    check_fields = {}
+    for k, v in data.items():
+        if k == "hash":
+            continue
+        if v is None:
+            continue
+        check_fields[k] = str(v)
+
     check_string = "\n".join(
         f"{k}={v}" for k, v in sorted(check_fields.items())
     )
 
-    # Secret key = SHA256 of the bot token (NOT the raw token)
-    bot_token = settings.TELEGRAM_BOT_TOKEN
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    # Telegram requires SHA256(bot_token)
+    bot_token = settings.TELEGRAM_BOT_TOKEN.strip()
+    secret_key = hashlib.sha256(bot_token.encode("utf-8")).digest()
 
-    # Compute expected hash
     expected_hash = hmac.new(
         secret_key,
-        check_string.encode(),
-        hashlib.sha256,
+        msg=check_string.encode("utf-8"),
+        digestmod=hashlib.sha256,
     ).hexdigest()
 
-    # Constant-time comparison prevents timing attacks
     is_valid = hmac.compare_digest(expected_hash, received_hash)
 
     if not is_valid:
         logger.warning(
-            "Telegram auth rejected: hash mismatch for telegram_id=%s.",
+            "Telegram auth rejected: hash mismatch telegram_id=%s",
             data.get("id"),
         )
 

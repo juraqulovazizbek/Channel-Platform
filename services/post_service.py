@@ -150,12 +150,11 @@ def create_manual_post(user: User, validated_data: dict) -> Post:
         user.telegram_id,
     )
 
-    # Trigger thumbnail generation for video/reel uploads
+# services/post_service.py:
+    # Manual post uchun alohida thumbnail task ishlatish kerak
     if post.type in (PostType.VIDEO, PostType.REEL) and post.media_file:
-        process_media_file.delay(str(post.id), None)
-
-    return post
-
+        from tasks.media_tasks import generate_video_thumbnail
+        generate_video_thumbnail.delay(str(post.id))  # ← to'g'ri task
 
 def handle_media_download_and_attach(post: Post, telegram_file_id: str) -> bool:
     """

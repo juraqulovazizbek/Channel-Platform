@@ -3,7 +3,7 @@ from typing import Optional
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Sum, Count, Avg, Max
+from django.db.models import Sum, Count
 
 from apps.analytics.models import PostView, DailyChannelStats
 from apps.channels.models import Channel
@@ -68,25 +68,8 @@ def increment_post_view(post_id: str, visitor_id: str) -> None:
 
 
 def flush_view_counters() -> int:
-    """
-    Flush Redis view counters to the database.
-
-    CALLED BY: tasks/analytics_tasks.py → Celery beat every 5 minutes.
-
-    STRATEGY:
-        1. Scan Redis for all keys matching 'post:views:*'
-        2. For each key, get the count and reset to 0 (atomic via GETDEL)
-        3. Bulk-update Post.views_count
-        4. Create aggregated PostView records for historical data
-
-    RETURNS:
-        Number of posts updated.
-
-    WHY GETDEL (atomic get + delete):
-        If we GET then DELETE separately, views counted between those
-        two operations are lost. GETDEL is atomic — no views are dropped.
-    """
     from django.core.cache import cache as django_cache
+    from django.conf import settings
 
     # Access the raw Redis client for SCAN + GETDEL
     # (django-redis exposes this via cache.client.get_client())
