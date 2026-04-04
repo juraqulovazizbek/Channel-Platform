@@ -105,22 +105,12 @@ def create_post_from_bot(data: dict) -> Optional[Post]:
     return post
 
 
+# services/post_service.py
+
 def create_manual_post(user: User, validated_data: dict) -> Post:
     """
     Create a Post via the web dashboard (not from Telegram).
-
-    WHY THIS EXISTS:
-        Manual posts don't have telegram_message_id or file_id.
-        They may have directly uploaded media files.
-        Source is always MANUAL.
-
-    AUTHORIZATION NOTE:
-        Channel ownership is validated in PostWriteSerializer.validate_channel.
-        We do NOT re-check here — that would duplicate logic. But we DO
-        assert channel.is_active to prevent posting to archived channels.
-
-    WHEN IT'S USED:
-        POST /api/posts/ → PostListCreateView → here.
+    Source is always MANUAL.
     """
     channel = validated_data["channel"]
 
@@ -138,7 +128,9 @@ def create_manual_post(user: User, validated_data: dict) -> Post:
             is_published=validated_data.get("is_published", True),
             is_pinned=validated_data.get("is_pinned", False),
             published_at=validated_data.get("published_at") or (
-                timezone.now() if validated_data.get("is_published", True) else None
+                timezone.now()
+                if validated_data.get("is_published", True)
+                else None
             ),
         )
 
@@ -150,11 +142,12 @@ def create_manual_post(user: User, validated_data: dict) -> Post:
         user.telegram_id,
     )
 
-# services/post_service.py:
-    # Manual post uchun alohida thumbnail task ishlatish kerak
+    # Video/Reel uchun thumbnail generatsiya — ALOHIDA task
     if post.type in (PostType.VIDEO, PostType.REEL) and post.media_file:
         from tasks.media_tasks import generate_video_thumbnail
-        generate_video_thumbnail.delay(str(post.id))  # ← to'g'ri task
+        generate_video_thumbnail.delay(str(post.id))
+
+    return post
 
 def handle_media_download_and_attach(post: Post, telegram_file_id: str) -> bool:
     """
