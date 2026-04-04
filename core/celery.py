@@ -9,8 +9,14 @@ import os
 from celery import Celery
 from celery.signals import setup_logging
 
+@setup_logging.connect
+def configure_logging(loglevel, logfile, format, colorize, **kwargs):
+    import logging.config
+    from django.conf import settings
+    logging.config.dictConfig(settings.LOGGING)
+
 os.environ.setdefault(
-    "DJANGO_SETTINGS_MODULE", "core.settings.production"
+    "DJANGO_SETTINGS_MODULE", "core.settings.development"
 )
 
 app = Celery("telegram_platform")

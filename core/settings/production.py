@@ -40,7 +40,7 @@ CSRF_COOKIE_SAMESITE = "Strict"
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 X_FRAME_OPTIONS = "DENY"
-REFERRER_POLICY = "strict-origin-when-cross-origin"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 # ---------------------------------------------------------------------------
 # Database — production PostgreSQL with connection pooling
