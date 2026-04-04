@@ -30,46 +30,26 @@ def dispatch_update(update: dict) -> None:
     Handlers are synchronous here — heavy work is dispatched to Celery
     inside the handlers themselves.
     """
+# dispatcher.py — to'g'ri versiya:
+def dispatch_update(update: dict) -> None:
     normalized = parse_webhook_update(update)
-
     if normalized is None:
-        logger.debug(
-            "Dispatcher: skipping unhandled update type | "
-            "update_id=%s keys=%s",
-            update.get("update_id"),
-            list(update.keys()),
-        )
         return
 
     update_type = normalized.get("update_type")
     is_edit = normalized.get("is_edit", False)
 
-    logger.debug(
-        "Dispatcher: routing update | update_id=%s type=%s is_edit=%s",
-        normalized.get("update_id"),
-        update_type,
-        is_edit,
-    )
-
-    # ── Edits ─────────────────────────────────────────────────────────────
     if is_edit:
         handle_edited_post(normalized)
         return
 
-    # ── Channel posts (auto-sync from linked Telegram channels) ───────────
     if update_type == "channel_post":
-        _route_by_media_type(normalized, source="channel")
+        handle_channel_post(normalized)   # ← endi chaqiriladi
         return
 
-    # ── Direct messages to the bot ────────────────────────────────────────
     if update_type == "message":
         _route_by_media_type(normalized, source="bot")
         return
-
-    logger.debug(
-        "Dispatcher: no handler for update_type=%s", update_type
-    )
-
 
 def _route_by_media_type(normalized: dict, source: str) -> None:
     """

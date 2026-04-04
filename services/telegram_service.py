@@ -1,4 +1,5 @@
 import logging
+from django.core.cache import cache
 from typing import Optional, Tuple
 
 import httpx
@@ -298,15 +299,18 @@ def _get(method: str, params: dict) -> Optional[dict]:
 
 
 def _get_bot_id() -> int:
-    """
-    Fetch the bot's own Telegram user ID via getMe.
-    Result should be cached in production (settings or Redis).
-    """
+    cache_key = "telegram:bot_id"
+    bot_id = cache.get(cache_key)
+    if bot_id:
+        return bot_id
+
     data = _get("getMe", {})
     if data and data.get("ok"):
-        return data["result"]["id"]
-    raise RuntimeError("Could not fetch bot ID from Telegram.")
+        bot_id = data["result"]["id"]
+        cache.set(cache_key, bot_id, timeout=86400)  # 24 soat
+        return bot_id
 
+    raise RuntimeError("Could not fetch bot ID from Telegram.")
 
 def _normalize_message(message: dict, source: str, update_id: int) -> Optional[dict]:
     """
@@ -355,6 +359,41 @@ def _normalize_message(message: dict, source: str, update_id: int) -> Optional[d
         "is_edit": False,
     }
 
+# services/telegram_service.py — _normalize_message ga qo'shish:
+def parse_webhook_update(update_json: dict) -> Optional[dict]:
+    update_id = update_json.get("update_id")
+
+    if "channel_post" in update_json:
+        message = update_json["channel_post"]
+        normalized = _normalize_message(message, source="channel", update_id=update_id)
+        if normalized:
+            normalized["update_type"] = "channel_post"  # ← QO'SHILDI
+        return normalized
+
+    if "edited_channel_post" in update_json:
+        message = update_json["edited_channel_post"]
+        normalized = _normalize_message(message, source="channel", update_id=update_id)
+        if normalized:
+            normalized["update_type"] = "channel_post"  # ← QO'SHILDI
+            normalized["is_edit"] = True
+        return normalized
+
+    if "message" in update_json:
+        message = update_json["message"]
+        normalized = _normalize_message(message, source="bot", update_id=update_id)
+        if normalized:
+            normalized["update_type"] = "message"       # ← QO'SHILDI
+        return normalized
+
+    if "edited_message" in update_json:
+        message = update_json["edited_message"]
+        normalized = _normalize_message(message, source="bot", update_id=update_id)
+        if normalized:
+            normalized["update_type"] = "message"       # ← QO'SHILDI
+            normalized["is_edit"] = True
+        return normalized
+
+    return None
 
 def _extract_file_id(message: dict, post_type: str) -> str:
     """
