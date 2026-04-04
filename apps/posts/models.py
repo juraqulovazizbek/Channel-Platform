@@ -160,13 +160,12 @@ class Post(models.Model):
         return f"[{self.type}] {self.title or self.id} — {self.channel.slug}"
 
 
+# apps/posts/models.py — PostMedia class
+
 class PostMedia(models.Model):
     """
     Additional media files for CAROUSEL type posts.
-
     A Carousel post has one Post record + multiple PostMedia records.
-    Keeping carousel items in a separate table avoids
-    JSON blobs and keeps queries simple.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -174,6 +173,16 @@ class PostMedia(models.Model):
         Post,
         on_delete=models.CASCADE,
         related_name="carousel_items",
+    )
+    # ← BU FIELD QO'SHILDI: avval umuman yo'q edi
+    file = models.FileField(
+        upload_to="posts/carousel/%Y/%m/%d/",
+        blank=True,
+        null=True,
+        help_text=(
+            "Populated by Celery after Telegram download. "
+            "Null until media_tasks.process_carousel_item_media completes."
+        ),
     )
     thumbnail = models.ImageField(
         upload_to="posts/carousel/thumbs/%Y/%m/%d/",
