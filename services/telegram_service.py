@@ -27,56 +27,59 @@ def _file_url(file_path: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# services/telegram_service.py — faqat BITTA parse_webhook_update bo'lishi kerak
+
 def parse_webhook_update(update_json: dict) -> Optional[dict]:
     """
     Parse a raw Telegram webhook update into a normalized dict.
-
-    WHY THIS EXISTS:
-        Telegram sends wildly different structures depending on update type:
-        - Personal messages:  update["message"]
-        - Channel posts:      update["channel_post"]
-        - Edits:              update["edited_message"] / update["edited_channel_post"]
-
-        Every other service and handler expects a consistent shape.
-        This function is the single normalizer — call it once, use the result everywhere.
-
-    RETURNS:
-        Normalized dict or None if the update type is not handled.
-
-    WHEN IT'S USED:
-        bot/views.py → here → post_service.create_post_from_bot
+    update_type field qo'shilgan — dispatcher routing uchun zarur.
     """
     update_id = update_json.get("update_id")
 
-    # --- Channel posts (synced from linked Telegram channels) ---
     if "channel_post" in update_json:
         message = update_json["channel_post"]
-        return _normalize_message(message, source="channel", update_id=update_id)
+        normalized = _normalize_message(
+            message, source="channel", update_id=update_id
+        )
+        if normalized:
+            normalized["update_type"] = "channel_post"
+        return normalized
 
-    # --- Edited channel posts (we update the existing post record) ---
     if "edited_channel_post" in update_json:
         message = update_json["edited_channel_post"]
-        normalized = _normalize_message(message, source="channel", update_id=update_id)
+        normalized = _normalize_message(
+            message, source="channel", update_id=update_id
+        )
         if normalized:
+            normalized["update_type"] = "channel_post"
             normalized["is_edit"] = True
         return normalized
 
-    # --- Direct messages to the bot (sent by channel owner) ---
     if "message" in update_json:
         message = update_json["message"]
-        return _normalize_message(message, source="bot", update_id=update_id)
+        normalized = _normalize_message(
+            message, source="bot", update_id=update_id
+        )
+        if normalized:
+            normalized["update_type"] = "message"
+        return normalized
 
-    # --- Edited direct messages ---
     if "edited_message" in update_json:
         message = update_json["edited_message"]
-        normalized = _normalize_message(message, source="bot", update_id=update_id)
+        normalized = _normalize_message(
+            message, source="bot", update_id=update_id
+        )
         if normalized:
+            normalized["update_type"] = "message"
             normalized["is_edit"] = True
         return normalized
 
-    logger.debug("Unhandled update type: update_id=%s keys=%s", update_id, list(update_json.keys()))
+    logger.debug(
+        "Unhandled update type: update_id=%s keys=%s",
+        update_id,
+        list(update_json.keys()),
+    )
     return None
-
 
 def extract_message_data(update: dict) -> dict:
     """
@@ -358,42 +361,6 @@ def _normalize_message(message: dict, source: str, update_id: int) -> Optional[d
         "media_group_id": message.get("media_group_id"),
         "is_edit": False,
     }
-
-# services/telegram_service.py — _normalize_message ga qo'shish:
-def parse_webhook_update(update_json: dict) -> Optional[dict]:
-    update_id = update_json.get("update_id")
-
-    if "channel_post" in update_json:
-        message = update_json["channel_post"]
-        normalized = _normalize_message(message, source="channel", update_id=update_id)
-        if normalized:
-            normalized["update_type"] = "channel_post"  # ← QO'SHILDI
-        return normalized
-
-    if "edited_channel_post" in update_json:
-        message = update_json["edited_channel_post"]
-        normalized = _normalize_message(message, source="channel", update_id=update_id)
-        if normalized:
-            normalized["update_type"] = "channel_post"  # ← QO'SHILDI
-            normalized["is_edit"] = True
-        return normalized
-
-    if "message" in update_json:
-        message = update_json["message"]
-        normalized = _normalize_message(message, source="bot", update_id=update_id)
-        if normalized:
-            normalized["update_type"] = "message"       # ← QO'SHILDI
-        return normalized
-
-    if "edited_message" in update_json:
-        message = update_json["edited_message"]
-        normalized = _normalize_message(message, source="bot", update_id=update_id)
-        if normalized:
-            normalized["update_type"] = "message"       # ← QO'SHILDI
-            normalized["is_edit"] = True
-        return normalized
-
-    return None
 
 def _extract_file_id(message: dict, post_type: str) -> str:
     """
