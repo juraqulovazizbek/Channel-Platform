@@ -66,25 +66,41 @@ def increment_post_view(post_id: str, visitor_id: str) -> None:
 
     logger.debug("View counted: post=%s visitor=%s", post_id, visitor_id)
 
+# services/analytics_service.py
 
 def flush_view_counters() -> int:
+    """
+    Flush Redis view counters to the database.
+    KEY_PREFIX ni hisobga olgan holda to'g'ri pattern ishlatadi.
+    """
     from django.core.cache import cache as django_cache
     from django.conf import settings
 
-    # Access the raw Redis client for SCAN + GETDEL
-    # (django-redis exposes this via cache.client.get_client())
     try:
         redis_client = django_cache.client.get_client()
     except AttributeError:
         logger.warning("flush_view_counters: Redis client not available.")
         return 0
 
-    pattern = _VIEW_COUNTER_KEY.format(post_id="*")
+    # Django-redis saqlash formati: {prefix}:{version}:{key}
+    # base.py: KEY_PREFIX = "tgplatform", default version = 1
+    cache_config = settings.CACHES.get("default", {})
+    prefix = cache_config.get("KEY_PREFIX", "")
+    version = str(cache_config.get("VERSION", 1))
+
+    if prefix:
+        scan_pattern = f"{prefix}:{version}:post:views:*"
+        # post_id ni extract qilish uchun prefix uzunligi
+        # format: "tgplatform:1:post:views:{post_id}"
+        prefix_strip = f"{prefix}:{version}:"
+    else:
+        scan_pattern = "post:views:*"
+        prefix_strip = ""
+
     updated_count = 0
     posts_to_update = []
 
-    # SCAN is non-blocking — safe to use on production Redis
-    for key in redis_client.scan_iter(pattern):
+    for key in redis_client.scan_iter(scan_pattern):
         raw_count = redis_client.getdel(key)
         if not raw_count:
             continue
@@ -93,15 +109,24 @@ def flush_view_counters() -> int:
         if count <= 0:
             continue
 
-        # Extract post_id from the key string
-        post_id = key.decode().split(":")[-1]
+        # Key dan post_id ni to'g'ri extract qilish
+        key_str = key.decode("utf-8")
+        # prefix_strip olib tashlash: "tgplatform:1:post:views:abc" → "post:views:abc"
+        if prefix_strip and key_str.startswith(prefix_strip):
+            key_str = key_str[len(prefix_strip):]
 
+        # "post:views:{post_id}" dan post_id ni olish
+        parts = key_str.split(":")
+        if len(parts) < 3:
+            logger.warning("flush_view_counters: unexpected key format: %s", key_str)
+            continue
+
+        post_id = parts[-1]
         posts_to_update.append((post_id, count))
 
     if not posts_to_update:
         return 0
 
-    # Bulk update using a single query per post (F expression avoids race conditions)
     from django.db.models import F
 
     for post_id, count in posts_to_update:
@@ -111,7 +136,9 @@ def flush_view_counters() -> int:
         if rows:
             updated_count += 1
         else:
-            logger.warning("flush_view_counters: Post not found: id=%s", post_id)
+            logger.warning(
+                "flush_view_counters: Post not found: id=%s", post_id
+            )
 
     logger.info("View counters flushed: %d posts updated.", updated_count)
     return updated_count
