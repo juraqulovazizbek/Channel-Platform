@@ -1,6 +1,7 @@
+# apps/posts/serializers.py
+
 from rest_framework import serializers
 from apps.posts.models import Post, PostMedia, PostType
-from apps.channels.serializers import ChannelListSerializer
 
 
 class PostMediaSerializer(serializers.ModelSerializer):
@@ -59,7 +60,10 @@ class PostDetailSerializer(serializers.ModelSerializer):
     carousel_items is only populated when type == CAROUSEL.
     """
 
-    channel = ChannelListSerializer(read_only=True)
+    # Import here to avoid circular import at module level.
+    # channels.serializers → posts.serializers davriy import bo'lishi mumkin.
+    # Bu lazy import pattern — class darajasida emas, __init__ ichida.
+    channel = serializers.SerializerMethodField()
     carousel_items = PostMediaSerializer(many=True, read_only=True)
 
     class Meta:
@@ -92,6 +96,10 @@ class PostDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def get_channel(self, obj):
+        from apps.channels.serializers import ChannelListSerializer
+        return ChannelListSerializer(obj.channel).data
+
     def to_representation(self, instance):
         """
         Omit carousel_items from the response entirely
@@ -110,15 +118,22 @@ class PostWriteSerializer(serializers.ModelSerializer):
 
     channel is passed as a UUID and validated against the requesting
     user's owned channels in the validate_channel method.
-    The actual ownership check happens here — not just in the view —
-    so the service layer is also protected if called directly.
+
+    MUHIM: __import__() anti-pattern ishlatilmaydi.
+    Circular import muammosini hal qilish uchun PrimaryKeyRelatedField
+    queryset ni get_queryset() orqali lazy yuklash ishlatiladi.
     """
 
     channel = serializers.PrimaryKeyRelatedField(
-        queryset=__import__(
-            "apps.channels.models", fromlist=["Channel"]
-        ).Channel.objects.all()
+        # queryset=None — get_queryset() orqali o'rnatiladi
+        queryset=None,
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Circular importni oldini olish: Channel ni bu yerda import qilamiz
+        from apps.channels.models import Channel
+        self.fields["channel"].queryset = Channel.objects.all()
 
     class Meta:
         model = Post
