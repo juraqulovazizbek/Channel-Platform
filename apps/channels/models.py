@@ -1,3 +1,5 @@
+# apps/channels/models.py
+
 import uuid
 from django.db import models
 from django.utils.text import slugify
@@ -90,14 +92,16 @@ class Channel(models.Model):
                 name="idx_channel_tg_id",
             ),
         ]
-    # models.py — to'g'rilangan:
-    constraints = [
-        models.UniqueConstraint(
-            fields=["owner", "telegram_channel_id"],
-            condition=models.Q(telegram_channel_id__isnull=False),  # ← NULL larni o'tkazib yuborish
-            name="uq_owner_telegram_channel",
-        )
-    ]
+        # MUHIM: constraints Meta ICHIDA bo'lishi shart.
+        # Tashqarida bo'lsa Django uni ko'rmaydi — DB constraint yaratilmaydi.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "telegram_channel_id"],
+                condition=models.Q(telegram_channel_id__isnull=False),
+                name="uq_owner_telegram_channel",
+            )
+        ]
+
     def __str__(self):
         return f"{self.name} ({self.slug})"
 
