@@ -1,3 +1,5 @@
+# core/settings/base.py
+
 from pathlib import Path
 from datetime import timedelta
 import environ
@@ -163,7 +165,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
-        "rest_framework.parsers.MultiPartParser",  # File uploads
+        "rest_framework.parsers.MultiPartParser",
         "rest_framework.parsers.FormParser",
     ],
     "DEFAULT_PAGINATION_CLASS": (
@@ -173,10 +175,12 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "100/hour",
         "user": "1000/hour",
+        "auth": "10/hour",      # TelegramAuthView throttle_scope = "auth"
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "utils.exceptions.custom_exception_handler",
@@ -272,24 +276,24 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 CELERY_ENABLE_UTC = True
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60        # Hard limit: 30 minutes
-CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60   # Soft limit: 25 minutes (raises SoftTimeLimitExceeded)
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1   # Fair task distribution
-CELERY_TASK_ACKS_LATE = True            # Acknowledge only after task completes
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 CELERY_BEAT_SCHEDULE = {
     "flush-view-counters": {
         "task": "tasks.analytics_tasks.flush_view_counters_task",
-        "schedule": 300.0,  # Every 5 minutes
+        "schedule": 300.0,
     },
     "sync-channel-subscriber-counts": {
         "task": "tasks.sync_tasks.sync_all_channel_subscriber_counts",
-        "schedule": 3600.0,  # Every hour
+        "schedule": 3600.0,
     },
     "aggregate-daily-channel-stats": {
         "task": "tasks.analytics_tasks.aggregate_daily_stats_task",
-        "schedule": 86400.0,  # Every 24 hours
+        "schedule": 86400.0,
         "options": {"expires": 3600},
     },
 }
@@ -305,11 +309,17 @@ USE_TZ = True
 
 # ---------------------------------------------------------------------------
 # Static & Media files
+#
+# TUZATILGAN: STATICFILES_DIRS da yo'q papkani ko'rsatish xato beradi.
+# static/ papkasi mavjud bo'lsa qo'shamiz, bo'lmasa bo'sh list.
 # ---------------------------------------------------------------------------
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+
+# static/ papkasi mavjud bo'lsa STATICFILES_DIRS ga qo'shamiz
+_static_dir = BASE_DIR / "static"
+STATICFILES_DIRS = [_static_dir] if _static_dir.exists() else []
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -339,6 +349,10 @@ SPECTACULAR_SETTINGS = {
 
 # ---------------------------------------------------------------------------
 # Logging
+#
+# TUZATILGAN: pythonjsonlogger requirements.txt da yo'q edi.
+# json formatter faqat production settings da ishlatiladi.
+# Base settings da oddiy formatter ishlatamiz.
 # ---------------------------------------------------------------------------
 
 LOGGING = {
@@ -355,13 +369,8 @@ LOGGING = {
             "format": "[{asctime}] {levelname} {name} {message}",
             "style": "{",
         },
-        "json": {
-            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "format": (
-                "%(asctime)s %(levelname)s %(name)s "
-                "%(process)d %(message)s"
-            ),
-        },
+        # json formatter faqat production da ishlatiladi
+        # va python-json-logger o'rnatilgan bo'lsa
     },
     "filters": {
         "require_debug_false": {
@@ -405,7 +414,6 @@ LOGGING = {
             "level": "WARNING",
             "propagate": False,
         },
-        # Our application namespaces
         "apps": {
             "handlers": ["console"],
             "level": "INFO",
