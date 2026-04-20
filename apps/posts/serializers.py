@@ -2,6 +2,7 @@
 
 from rest_framework import serializers
 from apps.posts.models import Post, PostMedia, PostType
+from apps.channels.models import Channel
 
 
 class PostMediaSerializer(serializers.ModelSerializer):
@@ -125,9 +126,10 @@ class PostWriteSerializer(serializers.ModelSerializer):
     """
 
     channel = serializers.PrimaryKeyRelatedField(
-        # queryset=None — get_queryset() orqali o'rnatiladi
-        queryset=None,
-    )
+    queryset=Channel.objects.all()
+)
+
+        # queryset=None — get_queryset() orqali o'rnatiladi    
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
