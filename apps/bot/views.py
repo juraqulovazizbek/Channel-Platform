@@ -8,7 +8,6 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django_ratelimit.decorators import ratelimit
-
 from apps.bot.dispatcher import dispatch_update
 
 logger = logging.getLogger(__name__)
