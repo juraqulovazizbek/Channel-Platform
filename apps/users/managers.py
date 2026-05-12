@@ -3,27 +3,56 @@ from django.contrib.auth.models import BaseUserManager
 
 class UserManager(BaseUserManager):
     """
-    Manager for telegram_id-based auth.
-    Email and password are not part of our auth flow,
-    but Django's admin still needs create_superuser.
+    Custom manager for Telegram-based authentication.
+
+    Normal users authenticate via Telegram.
+    Superusers/admins authenticate with password.
     """
 
-    def create_user(self, telegram_id, first_name="", **extra_fields):
+    def create_user(self, telegram_id, first_name="", password=None, **extra_fields):
+        """
+        Create regular Telegram user.
+        """
+
         if not telegram_id:
             raise ValueError("telegram_id is required")
+
         user = self.model(
             telegram_id=telegram_id,
             first_name=first_name,
             **extra_fields,
         )
-        # No password for normal Telegram users.
-        # They authenticate via Telegram — not a password.
-        user.set_unusable_password()
+
+        # Telegram users usually don't have passwords.
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, telegram_id, first_name="", **extra_fields):
-        """Only used for Django admin access during development."""
+    def create_superuser(self, telegram_id, first_name="Admin", password=None, **extra_fields):
+        """
+        Create Django admin superuser.
+        """
+
+        if not password:
+            raise ValueError("Superuser must have a password")
+
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        return self.create_user(telegram_id, first_name, **extra_fields)
+        extra_fields.setdefault("is_active", True)
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True")
+
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True")
+
+        return self.create_user(
+            telegram_id=telegram_id,
+            first_name=first_name,
+            password=password,
+            **extra_fields,
+        )
