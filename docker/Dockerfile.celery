@@ -1,0 +1,50 @@
+# Celery worker — same base image as web, different CMD
+# Inherits all system deps including ffmpeg (needed for thumbnail generation)
+
+FROM python:3.12-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --upgrade pip \
+    && pip install --prefix=/install --no-cache-dir -r requirements.txt
+
+
+FROM python:3.12-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    netcat-openbsd \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 1001 appgroup \
+    && useradd --uid 1001 --gid appgroup --shell /bin/bash --create-home appuser
+
+COPY --from=builder /install /usr/local
+
+WORKDIR /app
+COPY --chown=appuser:appgroup . .
+RUN chmod +x docker/entrypoint.sh
+
+USER appuser
+
+EXPOSE 0
+
+ENTRYPOINT ["docker/entrypoint.sh"]
+
+# Default: general-purpose worker
+# Override in docker-compose with specific queue bindings
+CMD ["celery", "-A", "core", "worker", \
+     "--loglevel=info", \
+     "--concurrency=4", \
+     "--max-tasks-per-child=100", \
+     "--without-gossip", \
+     "--without-mingle", \
+     "-Q", "celery,media,analytics"]
