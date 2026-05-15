@@ -32,6 +32,25 @@ class UserAdmin(BaseUserAdmin):
 
     ordering = ("-date_joined",)
 
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": (
+                    "telegram_id",
+                    "username",
+                    "first_name",
+                    "password1",
+                    "password2",
+                    "is_staff",
+                    "is_superuser",
+                    "is_active",
+                ),
+            },
+        ),
+    )
+
     readonly_fields = (
         "id",
         "date_joined",
